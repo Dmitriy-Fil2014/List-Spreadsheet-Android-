@@ -67,10 +67,16 @@ class RootView(BoxLayout):
         self.add_widget(bar)
         tools=BoxLayout(size_hint_y=None,height=dp(38),spacing=dp(4))
         for label,fn in [("B",lambda:self.apply_format(bold=True)),("I",lambda:self.apply_format(italic=True)),
-                         ("U",lambda:self.apply_format(underline=True)),("A→Z",self.sort_sheet),
+                         ("U",lambda:self.apply_format(underline=True)),
+                         ("Цвет",lambda:self.apply_format(font_color="FF087A4E")),
+                         ("Фон",lambda:self.apply_format(fill_color="FFDFF5E8")),
+                         ("Центр",lambda:self.apply_format(horizontal="center",vertical="center")),
+                         ("Объед.",self.merge_next_cell),("A→Z",self.sort_sheet),
                          ("Фильтр",self.filter_sheet),("Автозап.",self.fill_down)]:
             tools.add_widget(self._button(label,fn,dp(58)))
-        self.add_widget(tools)
+        scroller=ScrollView(size_hint_y=None,height=dp(40),do_scroll_x=True,do_scroll_y=False)
+        tools.size_hint=(None,1); tools.width=dp(58)*10
+        scroller.add_widget(tools); self.add_widget(scroller)
         self.grid=SheetGrid(); self.add_widget(self.grid)
         self.status_label=Label(text=self.tr("ready"),size_hint_y=None,height=dp(24),font_size="12sp")
         self.add_widget(self.status_label); self._apply_theme(); self.refresh_grid()
@@ -127,6 +133,18 @@ class RootView(BoxLayout):
     def commit_value(self,value):
         self.sheet.set(self.selected_cell,value); self.refresh_grid()
         self.status_label.text=f"{self.selected_cell} обновлена"
+    def merge_next_cell(self):
+        import re
+        match=re.fullmatch(r"([A-Z]+)([0-9]+)",self.selected_cell)
+        if not match:return
+        next_col=self._col(self._col_number(match.group(1))+1)
+        self.sheet.merge(f"{self.selected_cell}:{next_col}{match.group(2)}")
+        self.status_label.text="Объединение будет сохранено в XLSX"
+    @staticmethod
+    def _col_number(value):
+        result=0
+        for char in value: result=result*26+ord(char)-64
+        return result
     def apply_format(self, **style):
         self.sheet.format_cells([self.selected_cell], **style)
         self.refresh_grid()
