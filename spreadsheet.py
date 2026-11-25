@@ -1,4 +1,4 @@
-from pathlib import Path
+import csv
 from openpyxl import Workbook, load_workbook
 from formula_engine import FormulaEngine, FormulaError
 
@@ -64,4 +64,29 @@ class Spreadsheet:
             for cell in row:
                 if cell.value is not None:
                     result.set(cell.coordinate, cell.value)
+        book.close()
         return result
+
+    @classmethod
+    def load_csv(cls, path):
+        result = cls()
+        with open(path, "r", encoding="utf-8-sig", newline="") as source:
+            sample = source.read(4096)
+            source.seek(0)
+            try:
+                dialect = csv.Sniffer().sniff(sample, delimiters=",;\\t")
+            except csv.Error:
+                dialect = csv.excel
+            for row_index, row in enumerate(csv.reader(source, dialect), start=1):
+                for col_index, value in enumerate(row, start=1):
+                    if value:
+                        result.set(f"{_column_name(col_index)}{row_index}", value)
+        return result
+
+
+def _column_name(number):
+    name = ""
+    while number:
+        number, remainder = divmod(number - 1, 26)
+        name = chr(65 + remainder) + name
+    return name
