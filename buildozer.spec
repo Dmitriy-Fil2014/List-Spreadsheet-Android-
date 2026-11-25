@@ -13,7 +13,6 @@ android.minapi = 21
 android.ndk = 25b
 android.archs = arm64-v8a
 android.accept_sdk_license = True
-android.permissions = READ_MEDIA_IMAGES,READ_MEDIA_DOCUMENTS
 android.allow_backup = True
 android.private_storage = True
 p4a.branch = master
