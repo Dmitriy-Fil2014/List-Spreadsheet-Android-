@@ -147,8 +147,16 @@ class RootView(BoxLayout):
         except Exception as exc:self.message(self.tr("error"),str(exc))
     def open_menu(self):
         content=BoxLayout(orientation="vertical",padding=dp(10),spacing=dp(8)); popup=Popup(title=self.tr("menu"),content=content,size_hint=(.9,.5))
-        for label,fn in [(self.tr("settings"),self.open_settings),(self.tr("privacy"),lambda:self.show_document("PRIVACY_POLICY.md",self.tr("privacy"))),(self.tr("terms"),lambda:self.show_document("TERMS_OF_USE.md",self.tr("terms")))]:
+        for label,fn in [(self.tr("settings"),self.open_settings),\n            ("Листы",self.open_sheets),(self.tr("privacy"),lambda:self.show_document("PRIVACY_POLICY.md",self.tr("privacy"))),(self.tr("terms"),lambda:self.show_document("TERMS_OF_USE.md",self.tr("terms")))]:
             b=Button(text=label,size_hint_y=None,height=dp(48)); b.bind(on_release=lambda _,action=fn:(popup.dismiss(),action())); content.add_widget(b)
+        popup.open()
+    def open_sheets(self):
+        body=BoxLayout(orientation="vertical",padding=dp(10),spacing=dp(6))
+        popup=Popup(title="Листы книги",content=body,size_hint=(.85,.7))
+        for name in self.sheet.sheet_names:
+            button=Button(text=name,size_hint_y=None,height=dp(46))
+            button.bind(on_release=lambda _,n=name:(self.sheet.select_sheet(n),self.refresh_grid(),self.select_cell("A1"),popup.dismiss()))
+            body.add_widget(button)
         popup.open()
     def show_document(self,filename,title):
         p=Path(__file__).parent/filename; text=p.read_text(encoding="utf-8") if p.exists() else self.tr("document_missing")
