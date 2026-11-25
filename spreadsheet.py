@@ -11,7 +11,17 @@ class Spreadsheet:
         self.cells = {}
         self.styles = {}
         self.merged_ranges = []
+        self.active_sheet = "Лист1"
+        self.sheet_names = ["Лист1"]
+        self._sheet_states = {"Лист1": (self.cells, self.styles, self.merged_ranges)}
         self.engine = FormulaEngine(self._raw_value)
+
+    def select_sheet(self, name):
+        if name not in self._sheet_states:
+            raise KeyError(name)
+        self._sheet_states[self.active_sheet] = (self.cells, self.styles, self.merged_ranges)
+        self.active_sheet = name
+        self.cells, self.styles, self.merged_ranges = self._sheet_states[name]
 
     def get_raw(self, address):
         return self.cells.get(address.upper().replace("$", ""), "")
@@ -94,25 +104,59 @@ class Spreadsheet:
 
     def save_xlsx(self, path):
         book = Workbook()
-        sheet = book.active
-        sheet.title = "Лист1"
-        for address, value in self.cells.items():
-            cell = sheet[address]
-            cell.value = value
-            style = self.styles.get(address, {})
-            cell.font = Font(bold=style.get("bold", False), italic=style.get("italic", False),
-                             underline="single" if style.get("underline") else None,
-                             color=style.get("font_color"))
-            if style.get("fill_color"):
-                cell.fill = PatternFill("solid", fgColor=style["fill_color"])
-            cell.alignment = Alignment(horizontal=style.get("horizontal"),
-                                       vertical=style.get("vertical"),
-                                       wrap_text=style.get("wrap_text", False))
-            if style.get("number_format"):
-                cell.number_format = style["number_format"]
-        for cell_range in self.merged_ranges:
-            sheet.merge_cells(cell_range)
+        book.remove(book.active)
+        self._sheet_states[self.active_sheet] = (self.cells, self.styles, self.merged_ranges)
+        for sheet_name in self.sheet_names:
+            cells, styles, merged_ranges = self._sheet_states[sheet_name]
+            sheet = book.create_sheet(title=sheet_name[:31])
+            for address, value in cells.items():
+                cell = sheet[address]
+                cell.value = value
+                style = styles.get(address, {})
+                cell.font = Font(bold=style.get("bold", False), italic=style.get("italic", False),
+                                 underline="single" if style.get("underline") else None,
+                                 color=style.get("font_color"))
+                if style.get("fill_color"):
+                    cell.fill = PatternFill("solid", fgColor=style["fill_color"])
+                cell.alignment = Alignment(horizontal=style.get("horizontal"),
+                                           vertical=style.get("vertical"),
+                                           wrap_text=style.get("wrap_text", False))
+                if style.get("number_format"):
+                    cell.number_format = style["number_format"]
+            for cell_range in merged_ranges:
+                sheet.merge_cells(cell_range)
         book.save(str(path))
+
+    @classmethod
+    def load_xlsx(cls, path):
+        book = load_workbook(str(path), data_only=False)
+        result = cls()
+        result._sheet_states = {}
+        result.sheet_names = list(book.sheetnames)
+        for source_sheet in book.worksheets:
+            current = cls()
+            for row in source_sheet.iter_rows():
+                for cell in row:
+                    if cell.value is not None:
+                        current.set(cell.coordinate, cell.value)
+                        if cell.has_style:
+                            current.styles[cell.coordinate] = {
+                                "bold": cell.font.bold, "italic": cell.font.italic,
+                                "underline": bool(cell.font.underline),
+                                "font_color": _color_rgb(cell.font.color),
+                                "fill_color": _color_rgb(cell.fill.fgColor),
+                                "horizontal": cell.alignment.horizontal,
+                                "vertical": cell.alignment.vertical,
+                                "wrap_text": cell.alignment.wrap_text,
+                                "number_format": cell.number_format if cell.number_format != "General" else None}
+            current.merged_ranges = [str(r) for r in source_sheet.merged_cells.ranges]
+            result._sheet_states[source_sheet.title] = (current.cells, current.styles, current.merged_ranges)
+        result.active_sheet = book.active.title
+        result.cells, result.styles, result.merged_ranges = result._sheet_states[result.active_sheet]
+        result.rows = max(book.active.max_row, 100)
+        result.cols = max(book.active.max_column, 26)
+        book.close()
+        return result
 
     @classmethod
     def load_xlsx(cls, path):
@@ -175,7 +219,7 @@ class Spreadsheet:
 def _color_rgb(color):
     if color is None or color.type != "rgb" or not color.rgb:
         return None
-    return str(color.rgb)[-6:]
+    return "FF" + str(color.rgb)[-6:]
 
 
 def _column_name(number):
