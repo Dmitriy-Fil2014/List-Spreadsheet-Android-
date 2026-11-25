@@ -4,11 +4,8 @@ from kivy.metrics import dp
 from kivy.properties import StringProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
-from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
-from kivy.uix.scrollview import ScrollView
-from kivy.uix.textinput import TextInput
 from pathlib import Path
 
 from spreadsheet import Spreadsheet
@@ -35,9 +32,9 @@ KV = """
             halign: "left"
             text_size: self.size
         Button:
-            text: "Открыть"
+            text: "Открыть файл"
             size_hint_x: None
-            width: dp(88)
+            width: dp(116)
             on_release: root.open_file()
         Button:
             text: "Сохранить"
@@ -90,10 +87,10 @@ class RootView(BoxLayout):
     selected_cell = StringProperty("A1")
     formula_text = StringProperty("")
     status = StringProperty("Готово · Выберите ячейку и введите значение или формулу")
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.sheet = Spreadsheet(rows=100, cols=26)
-        self._buttons = {}
         self._refresh_grid()
 
     def _refresh_grid(self):
@@ -101,28 +98,26 @@ class RootView(BoxLayout):
         grid.clear_widgets()
         headers = [""] + [self._col_name(i) for i in range(1, 11)]
         for title in headers:
-            grid.add_widget(Label(text=title, bold=True, color=(0.25,0.31,0.4,1),
-                                  size_hint=(None,None), size=(dp(104),dp(42))))
+            grid.add_widget(Label(text=title, bold=True, color=(0.25, 0.31, 0.4, 1),
+                                  size_hint=(None, None), size=(dp(104), dp(42))))
         for row in range(1, 101):
-            grid.add_widget(Label(text=str(row), color=(0.35,0.4,0.48,1),
-                                  size_hint=(None,None), size=(dp(104),dp(42))))
+            grid.add_widget(Label(text=str(row), color=(0.35, 0.4, 0.48, 1),
+                                  size_hint=(None, None), size=(dp(104), dp(42))))
             for col in range(1, 11):
                 address = f"{self._col_name(col)}{row}"
-                value = self.sheet.display(address)
-                btn = Button(text=value, font_size="13sp",
-                             background_normal="", background_color=(1,1,1,1),
-                             color=(0.12,0.16,0.22,1),
-                             size_hint=(None,None), size=(dp(104),dp(42)))
+                btn = Button(text=self.sheet.display(address), font_size="13sp",
+                             background_normal="", background_color=(1, 1, 1, 1),
+                             color=(0.12, 0.16, 0.22, 1),
+                             size_hint=(None, None), size=(dp(104), dp(42)))
                 btn.bind(on_release=lambda instance, a=address: self.select_cell(a))
                 grid.add_widget(btn)
-                self._buttons[address] = btn
 
     @staticmethod
     def _col_name(n):
         result = ""
         while n:
-            n, rem = divmod(n-1, 26)
-            result = chr(65+rem) + result
+            n, rem = divmod(n - 1, 26)
+            result = chr(65 + rem) + result
         return result
 
     def select_cell(self, address):
@@ -140,24 +135,43 @@ class RootView(BoxLayout):
         try:
             path = Path(App.get_running_app().user_data_dir) / "таблица.xlsx"
             self.sheet.save_xlsx(path)
-            self.status = f"Сохранено: {path.name}"
+            self.status = f"Сохранено в приложении: {path.name}"
         except Exception as exc:
             self._message("Не удалось сохранить", str(exc))
 
     def open_file(self):
-        path = Path(App.get_running_app().user_data_dir) / "таблица.xlsx"
-        if not path.exists():
-            self._message("Файл не найден", "Сначала сохраните таблицу в приложении.")
+        try:
+            from plyer import filechooser
+            filechooser.open_file(
+                on_selection=self._on_file_selected,
+                filters=["*.xlsx", "*.csv"]
+            )
+            self.status = "Выберите файл Excel (.xlsx) или CSV"
+        except Exception as exc:
+            self._message("Не удалось открыть выбор файла", str(exc))
+
+    def _on_file_selected(self, selection):
+        if not selection:
+            self.status = "Открытие файла отменено"
             return
         try:
-            self.sheet = Spreadsheet.load_xlsx(path)
+            path = str(selection[0])
+            suffix = Path(path).suffix.lower()
+            if suffix == ".xlsx":
+                self.sheet = Spreadsheet.load_xlsx(path)
+            elif suffix == ".csv":
+                self.sheet = Spreadsheet.load_csv(path)
+            else:
+                self._message("Формат не поддерживается", "Выберите файл .xlsx или .csv")
+                return
             self._refresh_grid()
-            self.status = f"Открыт файл: {path.name}"
+            self.select_cell("A1")
+            self.status = f"Открыт файл: {Path(path).name}"
         except Exception as exc:
-            self._message("Не удалось открыть", str(exc))
+            self._message("Не удалось открыть файл", str(exc))
 
     def _message(self, title, message):
-        Popup(title=title, content=Label(text=message), size_hint=(.85,.35)).open()
+        Popup(title=title, content=Label(text=message), size_hint=(.88, .4)).open()
 
 
 class ListSpreadsheetApp(App):
