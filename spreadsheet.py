@@ -159,30 +159,6 @@ class Spreadsheet:
         return result
 
     @classmethod
-    def load_xlsx(cls, path):
-        book = load_workbook(str(path), data_only=False)
-        result = cls()
-        sheet = book.active
-        for row in sheet.iter_rows():
-            for cell in row:
-                if cell.value is not None:
-                    result.set(cell.coordinate, cell.value)
-                    if cell.has_style:
-                        result.styles[cell.coordinate] = {
-                            "bold": cell.font.bold, "italic": cell.font.italic,
-                            "underline": bool(cell.font.underline),
-                            "font_color": _color_rgb(cell.font.color),
-                            "fill_color": _color_rgb(cell.fill.fgColor),
-                            "horizontal": cell.alignment.horizontal,
-                            "vertical": cell.alignment.vertical,
-                            "wrap_text": cell.alignment.wrap_text,
-                            "number_format": cell.number_format if cell.number_format != "General" else None}
-        result.merged_ranges = [str(r) for r in sheet.merged_cells.ranges]
-        result.rows = max(sheet.max_row, 100)
-        result.cols = max(sheet.max_column, 26)
-        book.close()
-        return result
-
     @classmethod
     def load_xls(cls, path):
         try:
