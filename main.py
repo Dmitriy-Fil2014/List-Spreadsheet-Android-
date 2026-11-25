@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 from kivy.app import App
 from kivy.clock import Clock
+from kivy.animation import Animation
+from kivy.graphics import Color, RoundedRectangle
 from kivy.core.window import Window
 from kivy.metrics import dp
 from kivy.utils import platform
@@ -28,7 +30,16 @@ class CellButton(RecycleDataViewBehavior,Button):
     role=StringProperty("cell")
     def refresh_view_attrs(self,rv,index,data):
         self.address=data.get("address",""); self.role=data.get("role","cell")
-        return super().refresh_view_attrs(rv,index,data)
+        result = super().refresh_view_attrs(rv,index,data)
+        self.background_normal = ""
+        self.background_down = ""
+        self.background_color = data.get("background_color", (1,1,1,1))
+        self.color = data.get("color", (.12,.16,.22,1))
+        self.bold = data.get("bold", False)
+        self.italic = data.get("italic", False)
+        self.underline = data.get("underline", False)
+        self.font_size = "13sp"
+        return result
     def on_release(self):
         if self.role=="cell" and self.address: App.get_running_app().root.select_cell(self.address)
 
@@ -77,29 +88,52 @@ class RootView(BoxLayout):
         scroller=ScrollView(size_hint_y=None,height=dp(40),do_scroll_x=True,do_scroll_y=False)
         tools.size_hint=(None,1); tools.width=dp(58)*10
         scroller.add_widget(tools); self.add_widget(scroller)
-        self.grid=SheetGrid(); self.add_widget(self.grid)
+        self.grid=SheetGrid(size_hint=(1,1)); self.add_widget(self.grid)
         self.status_label=Label(text=self.tr("ready"),size_hint_y=None,height=dp(24),font_size="12sp")
         self.add_widget(self.status_label); self._apply_theme(); self.refresh_grid()
     def _button(self,text,fn,width):
-        b=Button(text=text,size_hint_x=None,width=width,background_normal="",background_color=COLORS["light"]["primary"])
-        b.bind(on_release=lambda *_:fn()); return b
+        b=Button(text=text,size_hint_x=None,width=width,background_normal="",
+                 background_down="",background_color=(0,0,0,0),
+                 color=(1,1,1,1),bold=True)
+        with b.canvas.before:
+            Color(*COLORS["light"]["primary"])
+            b._bg_rect = RoundedRectangle(pos=b.pos,size=b.size,radius=[dp(12)])
+        b.bind(pos=lambda w,v:setattr(b._bg_rect,"pos",v),
+               size=lambda w,v:setattr(b._bg_rect,"size",v))
+        b.bind(on_release=lambda *_:fn())
+        return b
     def _show_splash(self):
         from kivy.uix.image import Image
         from kivy.uix.anchorlayout import AnchorLayout
-        splash=BoxLayout(orientation="vertical",padding=dp(24),spacing=dp(16))
-        splash.add_widget(Label())
-        anchor=AnchorLayout(anchor_x="center",anchor_y="center",size_hint_y=None,height=dp(190))
-        anchor.add_widget(Image(source=str(Path(__file__).parent/"assets"/"icon.png"),size_hint=(None,None),size=(dp(180),dp(180))))
+        from kivy.uix.widget import Widget
+        splash = BoxLayout(orientation="vertical", padding=dp(24), spacing=dp(12))
+        with splash.canvas.before:
+            splash_bg = Color(.04,.58,.34,1)
+            splash_rect = RoundedRectangle(pos=splash.pos, size=splash.size, radius=[0])
+        splash.bind(pos=lambda w,v:setattr(splash_rect,"pos",v), size=lambda w,v:setattr(splash_rect,"size",v))
+        anchor = AnchorLayout(anchor_x="center", anchor_y="center")
+        logo = Image(source=str(Path(__file__).parent/"assets"/"icon.png"),
+                     size_hint=(None,None), size=(dp(132),dp(132)), opacity=0)
+        anchor.add_widget(logo)
+        splash.add_widget(Widget())
         splash.add_widget(anchor)
-        splash.add_widget(Label(text="Лист Таблицы",bold=True,font_size="24sp",size_hint_y=None,height=dp(44)))
-        self.clear_widgets(); self.add_widget(splash); Clock.schedule_once(lambda *_:self._finish_splash(),1.0)
+        splash.add_widget(Label(text="Лист Таблицы",bold=True,font_size="25sp",
+                                color=(1,1,1,1),size_hint_y=None,height=dp(42)))
+        splash.add_widget(Label(text="Подготовка таблиц…",font_size="13sp",
+                                color=(.9,1,.95,1),size_hint_y=None,height=dp(28)))
+        self.clear_widgets()
+        self.add_widget(splash)
+        Animation(opacity=1, duration=.35).start(logo)
+        Animation(y=dp(26), duration=.75, t="out_quad").start(logo)
+        Clock.schedule_once(lambda *_:Animation(r=.04,g=.28,b=.72,d=.65).start(splash_bg),.35)
+        Clock.schedule_once(lambda *_:self._finish_splash(),1.1)
     def _finish_splash(self):
         self._build_ui()
         if not self.store.exists("consent") or not self.store.get("consent").get("accepted",False): self.show_consent()
     def refresh_grid(self):
         data=[{"text":"","role":"header","background_color":(.88,.93,.90,1)}]
         data += [{"text":self._col(c),"role":"header","background_color":(.88,.93,.90,1)} for c in range(1,11)]
-        for row in range(1,501):
+        for row in range(1,151):
             data.append({"text":str(row),"role":"header","background_color":(.91,.94,.92,1)})
             for col in range(1,11):
                 addr=f"{self._col(col)}{row}"
@@ -199,7 +233,7 @@ class RootView(BoxLayout):
         popup.open()
     def show_document(self,filename,title):
         p=Path(__file__).parent/filename; text=p.read_text(encoding="utf-8") if p.exists() else self.tr("document_missing")
-        label=Label(text=text,size_hint_y=None,halign="left",valign="top",color=COLORS["light"]["text"])
+        label=Label(text=text,size_hint_y=None,halign="left",valign="top",color=COLORS["light"]["text"],font_size="14sp")
         label.bind(width=lambda w,v:setattr(w,"text_size",(v-dp(24),None)))
         label.bind(texture_size=lambda w,v:setattr(w,"height",v[1]+dp(24)))
         scroll=ScrollView(); scroll.add_widget(label); Popup(title=title,content=scroll,size_hint=(.94,.88)).open()
@@ -207,11 +241,11 @@ class RootView(BoxLayout):
         body=BoxLayout(orientation="vertical",padding=dp(10),spacing=dp(8)); body.add_widget(Label(text=self.tr("consent_intro"),size_hint_y=None,height=dp(56)))
         read={"privacy":False,"terms":False}; checks={}
         for key,filename in [("privacy","PRIVACY_POLICY.md"),("terms","TERMS_OF_USE.md")]:
-            row=BoxLayout(size_hint_y=None,height=dp(48)); btn=Button(text=self.tr(key+"_read")); check=CheckBox(disabled=True,size_hint_x=None,width=dp(48)); checks[key]=check
+            row=BoxLayout(size_hint_y=None,height=dp(48)); btn=Button(text=self.tr(key+"_read"),background_normal="",background_color=COLORS["light"]["primary"],color=(1,1,1,1)); check=CheckBox(disabled=True,size_hint_x=None,width=dp(48)); checks[key]=check
             def open_doc(_,k=key,f=filename):
                 self.show_document(f,self.tr(k)); read[k]=True; checks[k].disabled=False
             btn.bind(on_release=open_doc); row.add_widget(btn); row.add_widget(check); body.add_widget(row)
-        agree=Button(text=self.tr("agree"),disabled=True,size_hint_y=None,height=dp(48)); body.add_widget(agree)
+        agree=Button(text=self.tr("agree"),disabled=True,size_hint_y=None,height=dp(48),background_normal="",background_color=COLORS["light"]["primary"],color=(1,1,1,1)); body.add_widget(agree)
         def validate(*_): agree.disabled=not(read["privacy"] and read["terms"] and all(c.active for c in checks.values()))
         for c in checks.values(): c.bind(active=validate)
         popup=Popup(title=self.tr("consent_title"),content=body,size_hint=(.94,.56),auto_dismiss=False)
