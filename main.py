@@ -4,6 +4,7 @@ from kivy.app import App
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.metrics import dp
+from kivy.utils import platform
 from kivy.properties import StringProperty
 from kivy.storage.jsonstore import JsonStore
 from kivy.uix.boxlayout import BoxLayout
@@ -188,8 +189,25 @@ class RootView(BoxLayout):
         reset.bind(on_release=lambda *_:(self.store.delete("consent") if self.store.exists("consent") else None,popup.dismiss(),self.show_consent()))
         popup.open()
     def _apply_theme(self):
-        mode=self.theme if self.theme in ("light","dark") else "light"
-        Window.clearcolor=COLORS[mode]["bg"]
+        mode = self.theme if self.theme in ("light", "dark") else "light"
+        if self.theme == "system" and platform == "android":
+            try:
+                from jnius import autoclass
+                Configuration = autoclass("android.content.res.Configuration")
+                activity = autoclass("org.kivy.android.PythonActivity").mActivity
+                ui_mode = activity.getResources().getConfiguration().uiMode
+                mode = "dark" if (ui_mode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES else "light"
+            except Exception:
+                mode = "light"
+        colors = COLORS[mode]
+        Window.clearcolor = colors["bg"]
+        if hasattr(self, "cell_label"):
+            self.cell_label.color = colors["text"]
+        if hasattr(self, "status_label"):
+            self.status_label.color = colors["muted"]
+        if hasattr(self, "formula"):
+            self.formula.foreground_color = colors["text"]
+            self.formula.background_color = colors["bg"]
     def message(self,title,message): Popup(title=title,content=Label(text=message),size_hint=(.9,.4)).open()
 
 class ListSpreadsheetApp(App):
