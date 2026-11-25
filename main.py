@@ -34,6 +34,7 @@ class CellButton(RecycleDataViewBehavior,Button):
 class SheetGrid(RecycleView):
     def __init__(self,**kwargs):
         super().__init__(**kwargs)
+        self.viewclass = CellButton
         layout=RecycleGridLayout(cols=11,default_size=(dp(104),dp(42)),default_size_hint=(None,None),
             size_hint=(None,None),width=dp(104)*11,spacing=dp(1))
         layout.bind(minimum_height=layout.setter("height")); self.add_widget(layout)
@@ -62,7 +63,14 @@ class RootView(BoxLayout):
         self.formula=TextInput(multiline=False,hint_text=self.tr("formula_hint"))
         self.formula.bind(on_text_validate=lambda *_:self.commit_value(self.formula.text))
         bar.add_widget(self.formula); bar.add_widget(self._button("✓",lambda:self.commit_value(self.formula.text),dp(44)))
-        self.add_widget(bar); self.grid=SheetGrid(); self.add_widget(self.grid)
+        self.add_widget(bar)
+        tools=BoxLayout(size_hint_y=None,height=dp(38),spacing=dp(4))
+        for label,fn in [("B",lambda:self.apply_format(bold=True)),("I",lambda:self.apply_format(italic=True)),
+                         ("U",lambda:self.apply_format(underline=True)),("A→Z",self.sort_sheet),
+                         ("Фильтр",self.filter_sheet),("Автозап.",self.fill_down)]:
+            tools.add_widget(self._button(label,fn,dp(58)))
+        self.add_widget(tools)
+        self.grid=SheetGrid(); self.add_widget(self.grid)
         self.status_label=Label(text=self.tr("ready"),size_hint_y=None,height=dp(24),font_size="12sp")
         self.add_widget(self.status_label); self._apply_theme(); self.refresh_grid()
     def _button(self,text,fn,width):
@@ -100,6 +108,23 @@ class RootView(BoxLayout):
     def commit_value(self,value):
         self.sheet.set(self.selected_cell,value); self.refresh_grid()
         self.status_label.text=f"{self.selected_cell} обновлена"
+    def apply_format(self, **style):
+        self.sheet.format_cells([self.selected_cell], **style)
+        self.status_label.text = "Формат применён к " + self.selected_cell
+    def sort_sheet(self):
+        try:
+            self.sheet.sort_range("A1:J20", key_column=1)
+            self.refresh_grid()
+            self.status_label.text = "Диапазон A1:J20 отсортирован по столбцу A"
+        except Exception as exc:
+            self.message(self.tr("error"), str(exc))
+    def filter_sheet(self):
+        rows = self.sheet.filter_range("A1:J100", column=1)
+        self.status_label.text = "Непустые строки в столбце A: " + str(len(rows))
+    def fill_down(self):
+        self.sheet.autofill("A1:A1", "A2:A20")
+        self.refresh_grid()
+        self.status_label.text = "Значение A1 скопировано в A2:A20"
     def open_file(self):
         try:
             from plyer import filechooser
