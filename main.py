@@ -97,8 +97,26 @@ class RootView(BoxLayout):
             data.append({"text":str(row),"role":"header","background_color":(.91,.94,.92,1)})
             for col in range(1,11):
                 addr=f"{self._col(col)}{row}"
-                data.append({"text":self.sheet.display(addr),"address":addr,"role":"cell","background_color":(1,1,1,1)})
+                style = self.sheet.styles.get(addr, {})
+                data.append({"text":self.sheet.display(addr),"address":addr,"role":"cell",
+                             "bold":style.get("bold",False),"italic":style.get("italic",False),
+                             "underline":style.get("underline",False),
+                             "color":self._rgba(style.get("font_color"),(0.12,0.16,0.22,1)),
+                             "background_color":self._rgba(style.get("fill_color"),(1,1,1,1))})
         self.grid.data=data
+    @staticmethod
+    def _rgba(value, fallback):
+        if not value:
+            return fallback
+        raw = str(value).replace("#", "")
+        if len(raw) == 8:
+            raw = raw[-6:]
+        if len(raw) != 6:
+            return fallback
+        try:
+            return tuple(int(raw[i:i+2], 16)/255 for i in (0,2,4)) + (1,)
+        except ValueError:
+            return fallback
     @staticmethod
     def _col(n):
         s=""
@@ -111,6 +129,7 @@ class RootView(BoxLayout):
         self.status_label.text=f"{self.selected_cell} обновлена"
     def apply_format(self, **style):
         self.sheet.format_cells([self.selected_cell], **style)
+        self.refresh_grid()
         self.status_label.text = "Формат применён к " + self.selected_cell
     def sort_sheet(self):
         try:
