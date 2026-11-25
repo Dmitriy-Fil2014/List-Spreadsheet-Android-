@@ -7,6 +7,7 @@ on:
     paths:
       - "**.py"
       - "buildozer.spec"
+      - "assets/**"
       - "requirements.txt"
       - ".github/workflows/android.yml"
 
@@ -38,6 +39,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools wheel
           pip install buildozer==1.5.0 cython==0.29.36
+
+      - name: Render app icon
+        run: |
+          python -m pip install cairosvg==2.7.1
+          mkdir -p assets
+          python -c "import cairosvg; cairosvg.svg2png(url='assets/icon.svg', write_to='assets/icon.png', output_width=512, output_height=512)"
 
       - name: Build debug APK
         run: buildozer -v android debug
