@@ -5,6 +5,7 @@ package.domain = org.dmitriyfil
 source.dir = .
 source.include_exts = py,kv,png,jpg,atlas,md,svg,json
 icon.filename = %(source.dir)s/assets/icon.png
+presplash.filename = %(source.dir)s/assets/presplash.png
 version = 0.1.0
 requirements = python3,kivy,openpyxl,plyer,xlrd
 orientation = portrait
