@@ -44,12 +44,21 @@ class CellButton(RecycleDataViewBehavior,Button):
         if self.role=="cell" and self.address: App.get_running_app().root.select_cell(self.address)
 
 class SheetGrid(RecycleView):
-    def __init__(self,**kwargs):
+    COLS = 27
+    ROWS = 151
+    CELL_W = dp(92)
+    CELL_H = dp(40)
+
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.viewclass = CellButton
-        layout=RecycleGridLayout(cols=11,default_size=(dp(104),dp(42)),default_size_hint=(None,None),
-            size_hint=(None,None),width=dp(104)*11,spacing=dp(1))
-        layout.bind(minimum_height=layout.setter("height")); self.add_widget(layout)
+        self.size_hint = (None, None)
+        self.width = self.CELL_W * self.COLS
+        self.height = self.CELL_H * self.ROWS
+        layout = RecycleGridLayout(cols=self.COLS, default_size=(self.CELL_W, self.CELL_H),
+            default_size_hint=(None, None), size_hint=(None, None), width=self.width, spacing=dp(1))
+        layout.bind(minimum_height=layout.setter("height"))
+        self.add_widget(layout)
 
 class RootView(BoxLayout):
     selected_cell=StringProperty("A1")
@@ -72,7 +81,7 @@ class RootView(BoxLayout):
         if getattr(self, "current_document", None) and hasattr(self, "status_label"):
             self.save_file()
         self.clear_widgets()
-        Window.clearcolor = (0.06, 0.30, 0.78, 1)
+        Window.clearcolor = COLORS["light"]["primary"]
         page = BoxLayout(orientation="vertical", padding=dp(16), spacing=dp(12))
         header = BoxLayout(size_hint_y=None, height=dp(54), spacing=dp(8))
         header.add_widget(Label(text="Мои таблицы", bold=True, font_size="23sp", color=(1,1,1,1), halign="left"))
@@ -160,10 +169,14 @@ class RootView(BoxLayout):
                          ("Объед.",self.merge_next_cell),("A→Z",self.sort_sheet),
                          ("Фильтр",self.filter_sheet),("Автозап.",self.fill_down),("Σ SUM",lambda:self.insert_formula("=SUM(A1:A5)")),("AVG",lambda:self.insert_formula("=AVERAGE(A1:A5)")),("IF",lambda:self.insert_formula("=IF(A1>0,1,0)")),("Синий",lambda:self.apply_format(font_color="FF1565C0")),("Жёлтый",lambda:self.apply_format(fill_color="FFFFF2A8")),("Зелёный",lambda:self.apply_format(fill_color="FFC8F7D2"))]:
             tools.add_widget(self._button(label,fn,dp(58)))
-        scroller=ScrollView(size_hint_y=None,height=dp(40),do_scroll_x=True,do_scroll_y=False)
-        tools.size_hint=(None,1); tools.width=dp(58)*16
+        scroller=ScrollView(size_hint_y=None, height=dp(44), do_scroll_x=True, do_scroll_y=False)
+        tools.size_hint=(None,1); tools.width=dp(58)*len(tools.children)
         scroller.add_widget(tools); self.add_widget(scroller)
-        self.grid=SheetGrid(size_hint=(1,1)); self.add_widget(self.grid)
+        self.grid=SheetGrid()
+        grid_scroll=ScrollView(size_hint=(1,1), do_scroll_x=True, do_scroll_y=True,
+                               bar_width=dp(5), scroll_type=["bars", "content"])
+        grid_scroll.add_widget(self.grid)
+        self.add_widget(grid_scroll)
         self.status_label=Label(text=self.tr("ready"),size_hint_y=None,height=dp(24),font_size="12sp")
         self.add_widget(self.status_label); self._apply_theme(); self.refresh_grid()
     def _button(self,text,fn,width):
@@ -178,18 +191,21 @@ class RootView(BoxLayout):
         b.bind(on_release=lambda *_:fn())
         return b
     def refresh_grid(self):
-        data=[{"text":"","role":"header","background_color":(.88,.93,.90,1)}]
-        data += [{"text":self._col(c),"role":"header","background_color":(.88,.93,.90,1)} for c in range(1,11)]
+        data=[{"text":"","role":"header","background_color":(.84,.90,.86,1)}]
+        data += [{"text":self._col(c),"role":"header","background_color":(.84,.90,.86,1)}
+                 for c in range(1,27)]
         for row in range(1,151):
-            data.append({"text":str(row),"role":"header","background_color":(.91,.94,.92,1)})
-            for col in range(1,11):
+            data.append({"text":str(row),"role":"header","background_color":(.88,.92,.89,1)})
+            for col in range(1,27):
                 addr=f"{self._col(col)}{row}"
-                style = self.sheet.styles.get(addr, {})
+                style=self.sheet.styles.get(addr,{})
+                selected=(addr==self.selected_cell)
                 data.append({"text":self.sheet.display(addr),"address":addr,"role":"cell",
-                             "bold":style.get("bold",False),"italic":style.get("italic",False),
-                             "underline":style.get("underline",False),
-                             "color":self._rgba(style.get("font_color"),(0.12,0.16,0.22,1)),
-                             "background_color":self._rgba(style.get("fill_color"),(1,1,1,1))})
+                    "bold":style.get("bold",False),"italic":style.get("italic",False),
+                    "underline":style.get("underline",False),
+                    "color":self._rgba(style.get("font_color"),(.12,.16,.22,1)),
+                    "background_color":((.82,.94,.86,1) if selected else
+                        self._rgba(style.get("fill_color"),(1,1,1,1)))})
         self.grid.data=data
     @staticmethod
     def _rgba(value, fallback):
@@ -210,7 +226,37 @@ class RootView(BoxLayout):
         while n: n,r=divmod(n-1,26); s=chr(65+r)+s
         return s
     def select_cell(self,addr):
-        self.selected_cell=addr; self.cell_label.text=addr; self.formula.text=self.sheet.get_raw(addr)
+        self.selected_cell=addr
+        self.cell_label.text=addr
+        self.formula.text=self.sheet.get_raw(addr)
+        self.refresh_grid()
+        self.edit_cell(addr)
+
+    def edit_cell(self, addr):
+        body=BoxLayout(orientation="vertical", padding=dp(12), spacing=dp(10))
+        editor=TextInput(text=self.sheet.get_raw(addr), multiline=False, size_hint_y=None,
+                         height=dp(52), hint_text="Введите значение или формулу (=SUM(A1:A5))")
+        body.add_widget(editor)
+        actions=BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(8))
+        cancel=Button(text="Отмена")
+        apply=Button(text="Готово", background_normal="", background_color=COLORS["light"]["primary"],
+                     color=(1,1,1,1))
+        actions.add_widget(cancel)
+        actions.add_widget(apply)
+        body.add_widget(actions)
+        popup=Popup(title="Ячейка " + addr, content=body, size_hint=(.94,None), height=dp(190),
+                    auto_dismiss=False)
+        cancel.bind(on_release=lambda *_:popup.dismiss())
+        def save_value(*_):
+            self.sheet.set(addr, editor.text)
+            self.formula.text=editor.text
+            self.refresh_grid()
+            self.status_label.text=addr + " обновлена"
+            popup.dismiss()
+        apply.bind(on_release=save_value)
+        editor.bind(on_text_validate=save_value)
+        popup.open()
+        Clock.schedule_once(lambda *_:setattr(editor,"focus",True),.2)
     def commit_value(self,value):
         self.sheet.set(self.selected_cell,value); self.refresh_grid()
         self.status_label.text=f"{self.selected_cell} обновлена"
