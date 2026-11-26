@@ -58,7 +58,6 @@ class RootView(BoxLayout):
         self.sheet=Spreadsheet(rows=100,cols=26)
         self.store=JsonStore(str(Path(App.get_running_app().user_data_dir)/"preferences.json"))
         self.language="ru"; self.theme="system"; self.translations={}
-        self._build_ui(); self._show_splash()
     def tr(self,key): return self.translations.get(key,key)
     def _locale(self,code):
         try: return json.loads((Path(__file__).parent/"locales"/(code+".json")).read_text(encoding="utf-8"))
@@ -102,34 +101,6 @@ class RootView(BoxLayout):
                size=lambda w,v:setattr(b._bg_rect,"size",v))
         b.bind(on_release=lambda *_:fn())
         return b
-    def _show_splash(self):
-        from kivy.uix.image import Image
-        from kivy.uix.anchorlayout import AnchorLayout
-        from kivy.uix.widget import Widget
-        splash = BoxLayout(orientation="vertical", padding=dp(24), spacing=dp(12))
-        with splash.canvas.before:
-            splash_bg = Color(.04,.58,.34,1)
-            splash_rect = RoundedRectangle(pos=splash.pos, size=splash.size, radius=[0])
-        splash.bind(pos=lambda w,v:setattr(splash_rect,"pos",v), size=lambda w,v:setattr(splash_rect,"size",v))
-        anchor = AnchorLayout(anchor_x="center", anchor_y="center")
-        logo = Image(source=str(Path(__file__).parent/"assets"/"icon.png"),
-                     size_hint=(None,None), size=(dp(132),dp(132)), opacity=0)
-        anchor.add_widget(logo)
-        splash.add_widget(Widget())
-        splash.add_widget(anchor)
-        splash.add_widget(Label(text="Лист Таблицы",bold=True,font_size="25sp",
-                                color=(1,1,1,1),size_hint_y=None,height=dp(42)))
-        splash.add_widget(Label(text="Подготовка таблиц…",font_size="13sp",
-                                color=(.9,1,.95,1),size_hint_y=None,height=dp(28)))
-        self.clear_widgets()
-        self.add_widget(splash)
-        Animation(opacity=1, duration=.35).start(logo)
-        Animation(y=dp(26), duration=.75, t="out_quad").start(logo)
-        Clock.schedule_once(lambda *_:Animation(r=.04,g=.28,b=.72,d=.65).start(splash_bg),.35)
-        Clock.schedule_once(lambda *_:self._finish_splash(),1.1)
-    def _finish_splash(self):
-        self._build_ui()
-        if not self.store.exists("consent") or not self.store.get("consent").get("accepted",False): self.show_consent()
     def refresh_grid(self):
         data=[{"text":"","role":"header","background_color":(.88,.93,.90,1)}]
         data += [{"text":self._col(c),"role":"header","background_color":(.88,.93,.90,1)} for c in range(1,11)]
@@ -288,6 +259,9 @@ class ListSpreadsheetApp(App):
         if root.store.exists("settings"):
             s=root.store.get("settings"); root.language=s.get("language","ru"); root.theme=s.get("theme","system"); root.translations=root._locale(root.language)
         else: root.translations=root._locale("ru")
+        root._build_ui()
+        if not root.store.exists("consent") or not root.store.get("consent").get("accepted", False):
+            Clock.schedule_once(lambda *_: root.show_consent(), 0)
         return root
 
 if __name__=="__main__": ListSpreadsheetApp().run()
