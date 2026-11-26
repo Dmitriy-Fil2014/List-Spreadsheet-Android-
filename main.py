@@ -209,18 +209,47 @@ class RootView(BoxLayout):
         label.bind(texture_size=lambda w,v:setattr(w,"height",v[1]+dp(24)))
         scroll=ScrollView(); scroll.add_widget(label); Popup(title=title,content=scroll,size_hint=(.94,.88)).open()
     def show_consent(self):
-        body=BoxLayout(orientation="vertical",padding=dp(10),spacing=dp(8)); body.add_widget(Label(text=self.tr("consent_intro"),size_hint_y=None,height=dp(56)))
-        read={"privacy":False,"terms":False}; checks={}
-        for key,filename in [("privacy","PRIVACY_POLICY.md"),("terms","TERMS_OF_USE.md")]:
-            row=BoxLayout(size_hint_y=None,height=dp(48)); btn=Button(text=self.tr(key+"_read"),background_normal="",background_color=COLORS["light"]["primary"],color=(1,1,1,1)); check=CheckBox(disabled=True,size_hint_x=None,width=dp(48)); checks[key]=check
-            def open_doc(_,k=key,f=filename):
-                self.show_document(f,self.tr(k)); read[k]=True; checks[k].disabled=False
-            btn.bind(on_release=open_doc); row.add_widget(btn); row.add_widget(check); body.add_widget(row)
-        agree=Button(text=self.tr("agree"),disabled=True,size_hint_y=None,height=dp(48),background_normal="",background_color=COLORS["light"]["primary"],color=(1,1,1,1)); body.add_widget(agree)
-        def validate(*_): agree.disabled=not(read["privacy"] and read["terms"] and all(c.active for c in checks.values()))
-        for c in checks.values(): c.bind(active=validate)
-        popup=Popup(title=self.tr("consent_title"),content=body,size_hint=(.94,.56),auto_dismiss=False)
-        agree.bind(on_release=lambda *_:(self.store.put("consent",accepted=True),popup.dismiss()))
+        body = BoxLayout(orientation="vertical", padding=dp(14), spacing=dp(10))
+        intro = Label(
+            text=self.tr("consent_intro") + "\n\nВы можете ознакомиться с документами сейчас или позже в меню приложения.",
+            size_hint_y=None, height=dp(82), halign="left", valign="middle",
+            color=COLORS["light"]["text"]
+        )
+        intro.bind(width=lambda w, v: setattr(w, "text_size", (v, None)))
+        body.add_widget(intro)
+
+        docs = BoxLayout(orientation="vertical", spacing=dp(8))
+        for key, filename in [("privacy", "PRIVACY_POLICY.md"), ("terms", "TERMS_OF_USE.md")]:
+            button = Button(
+                text=self.tr(key) + "  ·  Посмотреть",
+                size_hint_y=None, height=dp(48),
+                background_normal="", background_color=COLORS["light"]["primary"],
+                color=(1, 1, 1, 1)
+            )
+            button.bind(on_release=lambda _, f=filename, k=key: self.show_document(f, self.tr(k)))
+            docs.add_widget(button)
+        body.add_widget(docs)
+
+        note = Label(
+            text="Читать документы перед продолжением необязательно.",
+            size_hint_y=None, height=dp(34), font_size="12sp",
+            color=COLORS["light"]["muted"]
+        )
+        body.add_widget(note)
+
+        continue_button = Button(
+            text=self.tr("agree"), size_hint_y=None, height=dp(50),
+            background_normal="", background_color=COLORS["light"]["primary"],
+            color=(1, 1, 1, 1)
+        )
+        body.add_widget(continue_button)
+        popup = Popup(
+            title=self.tr("consent_title"), content=body,
+            size_hint=(.94, .58), auto_dismiss=False
+        )
+        continue_button.bind(on_release=lambda *_: (
+            self.store.put("consent", accepted=True), popup.dismiss()
+        ))
         popup.open()
     def open_settings(self):
         body=BoxLayout(orientation="vertical",padding=dp(12),spacing=dp(10))
