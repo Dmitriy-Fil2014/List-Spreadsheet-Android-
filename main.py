@@ -69,6 +69,8 @@ class RootView(BoxLayout):
         return self.store.get("documents").get("items", []) if self.store.exists("documents") else []
 
     def show_library(self):
+        if getattr(self, "current_document", None) and hasattr(self, "status_label"):
+            self.save_file()
         self.clear_widgets()
         Window.clearcolor = (0.06, 0.30, 0.78, 1)
         page = BoxLayout(orientation="vertical", padding=dp(16), spacing=dp(12))
@@ -156,10 +158,10 @@ class RootView(BoxLayout):
                          ("Фон",lambda:self.apply_format(fill_color="FFDFF5E8")),
                          ("Центр",lambda:self.apply_format(horizontal="center",vertical="center")),
                          ("Объед.",self.merge_next_cell),("A→Z",self.sort_sheet),
-                         ("Фильтр",self.filter_sheet),("Автозап.",self.fill_down)]:
+                         ("Фильтр",self.filter_sheet),("Автозап.",self.fill_down),("Σ SUM",lambda:self.insert_formula("=SUM(A1:A5)")),("AVG",lambda:self.insert_formula("=AVERAGE(A1:A5)")),("IF",lambda:self.insert_formula("=IF(A1>0,1,0)")),("Синий",lambda:self.apply_format(font_color="FF1565C0")),("Жёлтый",lambda:self.apply_format(fill_color="FFFFF2A8")),("Зелёный",lambda:self.apply_format(fill_color="FFC8F7D2"))]:
             tools.add_widget(self._button(label,fn,dp(58)))
         scroller=ScrollView(size_hint_y=None,height=dp(40),do_scroll_x=True,do_scroll_y=False)
-        tools.size_hint=(None,1); tools.width=dp(58)*10
+        tools.size_hint=(None,1); tools.width=dp(58)*16
         scroller.add_widget(tools); self.add_widget(scroller)
         self.grid=SheetGrid(size_hint=(1,1)); self.add_widget(self.grid)
         self.status_label=Label(text=self.tr("ready"),size_hint_y=None,height=dp(24),font_size="12sp")
