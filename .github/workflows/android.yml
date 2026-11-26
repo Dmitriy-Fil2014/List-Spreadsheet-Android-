@@ -46,7 +46,7 @@ jobs:
         run: |
           python -m pip install cairosvg==2.7.1
           mkdir -p assets
-          python -c "import cairosvg; cairosvg.svg2png(url='assets/icon.svg', write_to='assets/icon.png', output_width=512, output_height=512)"
+          python -c "import cairosvg; cairosvg.svg2png(url='assets/icon.svg', write_to='assets/icon.png', output_width=512, output_height=512); cairosvg.svg2png(url='assets/presplash.svg', write_to='assets/presplash.png', output_width=512, output_height=512)"
 
       - name: Validate Python syntax
         run: python -m compileall -q main.py spreadsheet.py formula_engine.py
