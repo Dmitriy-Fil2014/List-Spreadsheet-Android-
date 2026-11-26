@@ -63,10 +63,84 @@ class RootView(BoxLayout):
         try: return json.loads((Path(__file__).parent/"locales"/(code+".json")).read_text(encoding="utf-8"))
         except (OSError,ValueError): return {}
     def _build_ui(self):
+        self.show_library()
+
+    def _documents(self):
+        return self.store.get("documents").get("items", []) if self.store.exists("documents") else []
+
+    def show_library(self):
+        self.clear_widgets()
+        Window.clearcolor = (0.06, 0.30, 0.78, 1)
+        page = BoxLayout(orientation="vertical", padding=dp(16), spacing=dp(12))
+        header = BoxLayout(size_hint_y=None, height=dp(54), spacing=dp(8))
+        header.add_widget(Label(text="Мои таблицы", bold=True, font_size="23sp", color=(1,1,1,1), halign="left"))
+        header.add_widget(self._button("⚙", self.open_settings, dp(48)))
+        page.add_widget(header)
+        create = Button(text="+  Создать таблицу", size_hint_y=None, height=dp(54),
+                        background_normal="", background_color=(1,1,1,1), color=(.05,.25,.65,1),
+                        bold=True, font_size="17sp")
+        create.bind(on_release=lambda *_: self.create_table())
+        page.add_widget(create)
+        docs = self._documents()
+        if not docs:
+            page.add_widget(Label(text="Пока ничего нет\\nСоздайте первую таблицу", color=(1,1,1,.9),
+                                  halign="center", valign="middle", font_size="17sp"))
+        else:
+            scroll = ScrollView()
+            items = BoxLayout(orientation="vertical", spacing=dp(8), size_hint_y=None)
+            items.bind(minimum_height=items.setter("height"))
+            for doc in docs:
+                row = BoxLayout(size_hint_y=None, height=dp(58), spacing=dp(6))
+                open_btn = Button(text="▦  " + doc.get("name","Таблица"), background_normal="",
+                                  background_color=(1,1,1,.96), color=(.08,.16,.3,1), halign="left")
+                open_btn.bind(on_release=lambda _, d=doc: self.open_table(d))
+                row.add_widget(open_btn)
+                del_btn = Button(text="×", size_hint_x=None, width=dp(46), background_normal="",
+                                 background_color=(.82,.18,.22,1), color=(1,1,1,1))
+                del_btn.bind(on_release=lambda _, d=doc: self.delete_table(d))
+                row.add_widget(del_btn)
+                items.add_widget(row)
+            scroll.add_widget(items)
+            page.add_widget(scroll)
+        self.add_widget(page)
+
+    def create_table(self):
+        docs = self._documents()
+        name = "Таблица " + str(len(docs) + 1)
+        filename = "sheet_" + str(int(__import__("time").time() * 1000)) + ".xlsx"
+        doc = {"name": name, "file": filename}
+        docs.append(doc)
+        self.store.put("documents", items=docs)
+        self.sheet = Spreadsheet(rows=100, cols=26)
+        self.current_document = doc
+        self.open_editor()
+
+    def open_table(self, doc):
+        path = Path(App.get_running_app().user_data_dir) / "documents" / doc["file"]
+        try:
+            self.sheet = Spreadsheet.load_xlsx(path) if path.exists() else Spreadsheet(rows=100, cols=26)
+            self.current_document = doc
+            self.open_editor()
+        except Exception as exc:
+            self.message("Не удалось открыть таблицу", str(exc))
+
+    def delete_table(self, doc):
+        docs = [d for d in self._documents() if d.get("file") != doc.get("file")]
+        self.store.put("documents", items=docs)
+        path = Path(App.get_running_app().user_data_dir) / "documents" / doc["file"]
+        try:
+            if path.exists(): path.unlink()
+        except OSError: pass
+        self.show_library()
+
+    def open_editor(self):
+        self._build_editor_ui()
+
+    def _build_editor_ui(self):
         self.clear_widgets()
         top=BoxLayout(size_hint_y=None,height=dp(50),spacing=dp(8))
         title=Label(text="Лист Таблицы",bold=True,font_size="20sp",color=COLORS["light"]["text"],halign="left")
-        top.add_widget(title); top.add_widget(self._button(self.tr("open"),self.open_file,dp(112)))
+        top.add_widget(title); top.add_widget(self._button("Мои таблицы",self.show_library,dp(112))); top.add_widget(self._button("Сохранить",self.save_file,dp(92))); top.add_widget(self._button(self.tr("open"),self.open_file,dp(88)))
         top.add_widget(self._button("⋮",self.open_menu,dp(44))); self.add_widget(top)
         bar=BoxLayout(size_hint_y=None,height=dp(44),spacing=dp(6))
         self.cell_label=Label(text=self.selected_cell,size_hint_x=None,width=dp(48),color=COLORS["light"]["text"])
@@ -260,6 +334,21 @@ class RootView(BoxLayout):
         save.bind(on_release=lambda *_:(setattr(self,"language",lang.text),setattr(self,"theme",theme.text),self.store.put("settings",language=self.language,theme=self.theme),setattr(self,"translations",self._locale(self.language)),popup.dismiss(),self._build_ui()))
         reset.bind(on_release=lambda *_:(self.store.delete("consent") if self.store.exists("consent") else None,popup.dismiss(),self.show_consent()))
         popup.open()
+    def show_formula_help(self):
+        guide = ("Формулы начинаются со знака =. Введите формулу в строку над таблицей и нажмите ✓.\\n\\n"
+            "Ссылки: =A1+B1. Диапазон: =SUM(A1:A10).\\n\\n"
+            "Математика: SUM, AVERAGE, MIN, MAX, COUNT, MEDIAN, STDEV, VAR, ABS, ROUND, SQRT, POWER.\\n"
+            "Условия: IF, AND, OR, NOT, COUNTIF.\\n"
+            "Текст: LEN, UPPER, LOWER, TRIM, LEFT, RIGHT, MID, CONCAT, CONCATENATE.\\n\\n"
+            "Примеры: =SUM(B2:B8) — сумма; =AVERAGE(C1:C5) — среднее; "
+            "=IF(A1>10,1,0) — условие; =ROUND(B1,2) — округление.\\n\\n"
+            "Аргументы можно разделять запятыми или точками с запятой.")
+        label=Label(text=guide,size_hint_y=None,halign="left",valign="top",color=COLORS["light"]["text"],font_size="14sp")
+        label.bind(width=lambda w,v:setattr(w,"text_size",(v-dp(24),None)))
+        label.bind(texture_size=lambda w,v:setattr(w,"height",v[1]+dp(24)))
+        scroll=ScrollView(); scroll.add_widget(label)
+        Popup(title="Справка по формулам",content=scroll,size_hint=(.94,.86)).open()
+
     def _apply_theme(self):
         mode = self.theme if self.theme in ("light", "dark") else "light"
         if self.theme == "system" and platform == "android":
