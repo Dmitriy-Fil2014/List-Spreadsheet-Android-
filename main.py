@@ -259,9 +259,18 @@ class RootView(BoxLayout):
             self.refresh_grid(); self.select_cell("A1"); self.status_label.text=f"{self.tr('opened')}: {Path(path).name}"
         except Exception as exc:self.message(self.tr("open_error"),str(exc))
     def save_file(self):
-        path=Path(App.get_running_app().user_data_dir)/"таблица.xlsx"
-        try:self.sheet.save_xlsx(path); self.status_label.text=f"{self.tr('saved')}: {path.name}"
-        except Exception as exc:self.message(self.tr("error"),str(exc))
+        try:
+            folder = Path(App.get_running_app().user_data_dir) / "documents"
+            folder.mkdir(parents=True, exist_ok=True)
+            doc = getattr(self, "current_document", None)
+            if not doc:
+                self.message("Сохранение", "Сначала создайте или откройте таблицу.")
+                return
+            path = folder / doc["file"]
+            self.sheet.save_xlsx(path)
+            self.status_label.text = "Сохранено: " + doc["name"]
+        except Exception as exc:
+            self.message(self.tr("error"), str(exc))
     def open_menu(self):
         content=BoxLayout(orientation="vertical",padding=dp(10),spacing=dp(8)); popup=Popup(title=self.tr("menu"),content=content,size_hint=(.9,.5))
         for label,fn in [(self.tr("settings"),self.open_settings),
@@ -327,11 +336,14 @@ class RootView(BoxLayout):
         popup.open()
     def open_settings(self):
         body=BoxLayout(orientation="vertical",padding=dp(12),spacing=dp(10))
+        help_button=Button(text="Как пользоваться формулами? · Узнать больше",size_hint_y=None,height=dp(48))
+        help_button.bind(on_release=lambda *_: self.show_formula_help())
+        body.add_widget(help_button)
         body.add_widget(Label(text=self.tr("language"))); lang=Spinner(text=self.language,values=("ru","en"),size_hint_y=None,height=dp(44)); body.add_widget(lang)
         body.add_widget(Label(text=self.tr("theme"))); theme=Spinner(text=self.theme,values=("system","light","dark"),size_hint_y=None,height=dp(44)); body.add_widget(theme)
         save=Button(text=self.tr("save"),size_hint_y=None,height=dp(46)); reset=Button(text=self.tr("reset_consent"),size_hint_y=None,height=dp(46))
         body.add_widget(save); body.add_widget(reset); popup=Popup(title=self.tr("settings"),content=body,size_hint=(.9,.64))
-        save.bind(on_release=lambda *_:(setattr(self,"language",lang.text),setattr(self,"theme",theme.text),self.store.put("settings",language=self.language,theme=self.theme),setattr(self,"translations",self._locale(self.language)),popup.dismiss(),self._build_ui()))
+        save.bind(on_release=lambda *_:(setattr(self,"language",lang.text),setattr(self,"theme",theme.text),self.store.put("settings",language=self.language,theme=self.theme),setattr(self,"translations",self._locale(self.language)),popup.dismiss(),self.show_library()))
         reset.bind(on_release=lambda *_:(self.store.delete("consent") if self.store.exists("consent") else None,popup.dismiss(),self.show_consent()))
         popup.open()
     def show_formula_help(self):
