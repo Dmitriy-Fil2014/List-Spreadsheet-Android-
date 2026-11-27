@@ -159,7 +159,6 @@ class Spreadsheet:
         return result
 
     @classmethod
-    @classmethod
     def load_xls(cls, path):
         try:
             import xlrd
