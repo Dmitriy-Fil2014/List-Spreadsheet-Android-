@@ -55,9 +55,8 @@ class SheetGrid(RecycleView):
         self.size_hint = (None, None)
         self.width = self.CELL_W * self.COLS
         self.height = self.CELL_H * self.ROWS
-        layout = RecycleGridLayout(cols=self.COLS, default_size=(self.CELL_W, self.CELL_H),
-            default_size_hint=(None, None), size_hint=(None, None), width=self.width, spacing=dp(1))
-        layout.bind(minimum_height=layout.setter("height"))
+        layout = RecycleGridLayout(cols=self.COLS, default_size=(self.CELL_W, self.CELL_H), default_size_hint=(None, None), size_hint=(None, None), width=self.width, height=self.height, spacing=dp(1))
+        layout.bind(minimum_height=layout.setter("height"), minimum_width=layout.setter("width"))
         self.add_widget(layout)
 
 class RootView(BoxLayout):
@@ -122,8 +121,10 @@ class RootView(BoxLayout):
         doc = {"name": name, "file": filename}
         docs.append(doc)
         self.store.put("documents", items=docs)
-        self.sheet = Spreadsheet(rows=100, cols=26)
+        (Path(App.get_running_app().user_data_dir) / "documents").mkdir(parents=True, exist_ok=True)
+        self.sheet = Spreadsheet(rows=150, cols=26)
         self.current_document = doc
+        self.selected_cell = "A1"
         self.open_editor()
 
     def open_table(self, doc):
@@ -230,7 +231,8 @@ class RootView(BoxLayout):
         self.cell_label.text=addr
         self.formula.text=self.sheet.get_raw(addr)
         self.refresh_grid()
-        self.edit_cell(addr)
+        self.formula.focus = True
+        self.formula.select_all()
 
     def edit_cell(self, addr):
         body=BoxLayout(orientation="vertical", padding=dp(12), spacing=dp(10))
