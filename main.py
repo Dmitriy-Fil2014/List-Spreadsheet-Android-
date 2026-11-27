@@ -259,9 +259,12 @@ class RootView(BoxLayout):
         editor.bind(on_text_validate=save_value)
         popup.open()
         Clock.schedule_once(lambda *_:setattr(editor,"focus",True),.2)
-    def commit_value(self,value):
-        self.sheet.set(self.selected_cell,value); self.refresh_grid()
-        self.status_label.text=f"{self.selected_cell} обновлена"
+    def commit_value(self, value):
+        self.sheet.set(self.selected_cell, value)
+        self.formula.text = value
+        self.refresh_grid()
+        self.status_label.text = f"{self.selected_cell} обновлена"
+        self.save_file()
     def merge_next_cell(self):
         import re
         match=re.fullmatch(r"([A-Z]+)([0-9]+)",self.selected_cell)
@@ -435,6 +438,8 @@ class RootView(BoxLayout):
 
 class ListSpreadsheetApp(App):
     def build(self):
+        Window.fullscreen = True
+        Window.clearcolor = COLORS["light"]["primary"]
         root=RootView()
         if root.store.exists("settings"):
             s=root.store.get("settings"); root.language=s.get("language","ru"); root.theme=s.get("theme","system"); root.translations=root._locale(root.language)
